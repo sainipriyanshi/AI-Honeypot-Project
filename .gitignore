@@ -1,0 +1,12 @@
+# Python environment
+venv/
+__pycache__/
+*.pyc
+
+# Local Data (Honeypot Logs)
+live_monitor.json
+captured_intelligence.json
+final_trapped_scammers.json
+
+# Environment variables
+.env
