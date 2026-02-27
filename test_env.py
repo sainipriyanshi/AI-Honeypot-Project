@@ -38,7 +38,7 @@ def send_message(session_id, text):
     })
 
     print(f"Scammer: {text}")
-    print(f"AI: {reply_text}\n")
+    print(f"Response: {reply_text}\n")
 
 if __name__ == "__main__":
     s_id = "VIVA-REAL-SCAM-TEST"
