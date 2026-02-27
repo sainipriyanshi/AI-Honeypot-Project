@@ -1,10 +1,11 @@
 fastapi==0.129.1
 uvicorn==0.41.0
-langchain-groq==1.1.2
 langchain==1.2.10
+langchain-groq==1.1.2
 groq==0.37.1
-python-dotenv==1.2.1
 streamlit==1.54.0
+python-dotenv==1.2.1
 pandas==2.3.3
-requests==2.32.5
-pydantic==2.12.5
+typing-inspection==0.4.2
+uuid_utils==0.14.1
+langsmith==0.7.7
