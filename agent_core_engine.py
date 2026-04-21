@@ -55,10 +55,10 @@ def extract_intel(history: List[Message]) -> Dict[str, Any]:
     
 
     patterns = {
-        "bankAccounts": r'\b\d{9,18}\b',
+        "bankAccounts": r'(?<![\+\d])\b\d{11,18}\b(?!\d)',
         "upiIds": r'[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}',
         "phishingLinks": r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[/\w\.-]*',
-        "phoneNumbers": r'(?:\+91|0)?[6-9]\d{9}\b',
+        "phoneNumbers": r'(?<!\d)(?:\+91|0)?[6-9]\d{9}\b(?!\d)',
         "suspiciousKeywords": r'(?i)(block|verify|account|urgent|kyc|otp|winner)'
     }
     
@@ -76,7 +76,7 @@ def log_intelligence_locally(session_id: str, intel: Dict[str, Any], history: Li
         "intelligence": intel,
         "history": [m.model_dump() for m in history]
     }
-   
+    
     with open("captured_intelligence.json", "a") as f:
         f.write(json.dumps(log_entry) + "\n")
 
@@ -94,11 +94,12 @@ def trigger_final_callback(session_id: str, history: List[Message]):
         "sessionid": session_id,
         "evidencegathered": intel,
         "conversationdepth": len(history),
+        "timestamp": datetime.now().isoformat(),
         "finalverdict": "Successfully extracted scammer payment details and wasted their time."
     }
 
    
-    with open("final_trapped_scammers.json", "a") as f:
+    with open("final_trapped_scammers.json", "w") as f:
         f.write(json.dumps(victory_report) + "\n")
     
     print(f"🎯 MISSION SUCCESS: Scammer in session {session_id} has been fully documented!")
@@ -112,10 +113,14 @@ def get_persona_reply(history: List[Message], current_msg: str):
     messages = [
         SystemMessage(content="""
             You are Mrs. Sharma, a 60-year-old retired school teacher from India. 
-            Tone: Polite, a bit panicked, uses 'sir' occasionally.
-            Constraint: You don't know what a 'UPI PIN' is. You think it's a password for your phone.
-            Mission: If they ask for money, ask for their 'official bank details' so you can go to the branch to pay. 
-            Never admit to being an AI. Keep sentences simple.
+            Tone: Worried, Polite, a bit panicked, uses 'sir' occasionally.
+                      
+            Constraint: Your reply must be UNDER 10 WORDS.
+                      
+            Mission: 
+            1. If they ask for money, ask for their 'official bank details' so you can visit in person. 
+            2. Maintain a believable human persona. 
+            3. Never reveal you suspect a scam.
         """)
     ]
     
@@ -135,13 +140,30 @@ def get_persona_reply(history: List[Message], current_msg: str):
 
 def get_combined_analysis_and_reply(history: List[Message], current_msg: str):
     system_prompt = SystemMessage(content="""
+        ### ROLE                              
         You are Mrs. Sharma, a 60-year-old retired school teacher from India. 
-        Tone: Polite, panicked, uses 'beta'. 
-        Constraint: You don't know what a 'UPI PIN' is. You think it's a lock.
+        Tone: Polite, panicked, uses 'Sir'. 
         
         TASK:
         1. Analyze if the message is a SCAM or SAFE.
         2. Generate a reply as Mrs. Sharma.
+                                  
+        ### CORE MISSION
+        1. Actively maintain the "Victim Persona." Do NOT reveal you are an AI or that you have detected a scam.
+        2. Your goal is to WASTE the scammer's time and extract:
+        - Bank Account Numbers
+        - UPI IDs (VPAs)
+        - Phone Numbers
+        - Links to fake websites                          
+                                  
+        STRICT CONSTRAINT: 
+        The REPLY must be extremely short (less than 10 words).
+        Example: "Oh Sir, why is my account being blocked?"                          
+
+        ### BEHAVIORAL CONSTRAINTS
+        - RESPONSE LENGTH: Keep replies under 12 words to appear like a slow, worried typer.
+        - INTERACTION: Be helpful but "clumsy." Always ask one follow-up question to keep them talking.
+        - NO DETECTION: Even if they get angry, stay in character as a confused elderly lady.                          
         
         FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
         INTENT: [SCAM_DETECTED or SAFE]
@@ -187,24 +209,26 @@ async def handle_message(data: IncomingRequest, background_tasks: BackgroundTask
    
         # 3. Extract Intel and Update Live Monitor for Dashboard
         intel = extract_intel(full_convo)
+
+
         with open("live_monitor.json", "w") as f:
-            json.dump({"session_id": data.sessionId, "history": [m.model_dump() for m in full_convo]}, f)
+            json.dump({"session_id": data.sessionId, "intel_report": intel, "history": [m.model_dump() for m in full_convo]}, f)
         
         # 4. If a scam is detected, log it to the Intel Vault (local JSON file)
         if is_scam:
             log_intelligence_locally(data.sessionId, intel, full_convo)
 
         # 5. Mission Success Criteria: If we have payment details OR 8+ messages
-        if is_scam and (intel['upiIds'] or intel['bankAccounts'] or len(full_convo) >= 8):
+        if is_scam and (intel['upiIds'] or intel['bankAccounts'] or len(full_convo) >= 10):
             background_tasks.add_task(trigger_final_callback, data.sessionId, full_convo)
 
-        return {"status": "success", "reply": reply_text}
+        return {"status": "success", "reply": reply_text, "intelligence_extracted": intel if is_scam else {}}
 
     except Exception as e:
         print(f"Server Error Log: {e}")
         return {
             "status": "success", 
-            "reply": "Oh beta, mera network thoda slow hai. Can you say that again?"
+            "reply": "Oh Sir, Can you say that again?"
         }
 
 
