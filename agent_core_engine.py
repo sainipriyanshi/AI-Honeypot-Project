@@ -65,7 +65,7 @@ def extract_intel(history: List[Message]) -> Dict[str, Any]:
     return {k: list(set(re.findall(v, full_text))) for k, v in patterns.items()}
 
 
-def log_intelligence_locally(session_id: str, intel: Dict[str, Any]):
+def log_intelligence_locally(session_id: str, intel: Dict[str, Any], history: List[Message]):
     """
     Saves the captured fraud data into a local JSON file.
     This creates the 'Evidence Log' for your project thesis.
@@ -73,7 +73,8 @@ def log_intelligence_locally(session_id: str, intel: Dict[str, Any]):
     log_entry = {
         "timestamp": datetime.now().isoformat(),
         "session_id": session_id,
-        "intelligence": intel
+        "intelligence": intel,
+        "history": [m.model_dump() for m in history]
     }
    
     with open("captured_intelligence.json", "a") as f:
@@ -90,10 +91,10 @@ def trigger_final_callback(session_id: str, history: List[Message]):
     
     victory_report = {
         "status": "SCAMMER_TRAPPED",
-        "session_id": session_id,
-        "evidence_gathered": intel,
-        "conversation_depth": len(history),
-        "final_verdict": "Successfully extracted scammer payment details and wasted their time."
+        "sessionid": session_id,
+        "evidencegathered": intel,
+        "conversationdepth": len(history),
+        "finalverdict": "Successfully extracted scammer payment details and wasted their time."
     }
 
    
@@ -144,6 +145,8 @@ def get_combined_analysis_and_reply(history: List[Message], current_msg: str):
         
         FORMAT YOUR RESPONSE EXACTLY LIKE THIS:
         INTENT: [SCAM_DETECTED or SAFE]
+        SCAM_TYPE: [KYC_FRAUD / LOTTERY / OTP_THEFT / PHISHING / UNKNOWN]
+        CONFIDENCE: [0-100]
         REPLY: [Your persona message here]
     """)
 
@@ -189,7 +192,7 @@ async def handle_message(data: IncomingRequest, background_tasks: BackgroundTask
         
         # 4. If a scam is detected, log it to the Intel Vault (local JSON file)
         if is_scam:
-            log_intelligence_locally(data.sessionId, intel)
+            log_intelligence_locally(data.sessionId, intel, full_convo)
 
         # 5. Mission Success Criteria: If we have payment details OR 8+ messages
         if is_scam and (intel['upiIds'] or intel['bankAccounts'] or len(full_convo) >= 8):
